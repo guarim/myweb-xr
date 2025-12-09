@@ -7,174 +7,361 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"></script>
     <style>
-        body {
+        * {
             margin: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
+            padding: 0;
+            box-sizing: border-box;
         }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
         #container {
             width: 100vw;
             height: 100vh;
             position: relative;
         }
+        
         #overlay {
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
-            max-width: 500px;
+            width: 350px;
             padding: 20px;
-            background: rgba(0, 0, 0, 0.85);
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(30, 30, 50, 0.95) 100%);
             color: white;
             z-index: 1000;
-            box-sizing: border-box;
             max-height: 100vh;
             overflow-y: auto;
+            backdrop-filter: blur(10px);
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
+        
+        #overlay.hidden {
+            transform: translateX(-100%);
+        }
+        
+        #overlay::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #overlay::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        
+        #overlay::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.8);
+            border-radius: 4px;
+        }
+        
+        h2 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            text-align: center;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
         #controls {
             position: absolute;
-            bottom: 20px;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px 25px;
+            border-radius: 20px;
             display: flex;
-            gap: 10px;
+            gap: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
+        
         button {
-            padding: 10px 20px;
+            padding: 12px 24px;
             font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
             border: none;
-            border-radius: 5px;
-            background: #4CAF50;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            transition: all 0.3s;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            position: relative;
+            overflow: hidden;
         }
+        
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
         button:hover {
-            background: #45a049;
-            transform: scale(1.05);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
         }
+        
+        button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+        
         #status {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #4CAF50;
-        }
-        .config-section {
-            margin: 10px 0;
+            margin-top: 15px;
             padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
+            font-size: 13px;
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+            border-radius: 8px;
+            border-left: 3px solid #4ade80;
+            text-align: center;
         }
+        
+        .config-section {
+            margin: 12px 0;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
         input[type="text"], input[type="number"] {
             width: 100%;
-            padding: 8px;
-            margin: 5px 0;
-            border-radius: 4px;
-            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 6px 0;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
             box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+            transition: all 0.3s;
         }
+        
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+        }
+        
         select {
             width: 100%;
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
         }
+        
+        select option {
+            background: #1e1e32;
+            color: white;
+        }
+        
         label {
             display: block;
-            margin: 5px 0;
-            font-weight: bold;
-            color: #fff;
+            margin: 8px 0 4px 0;
+            font-weight: 600;
+            color: #e0e0e0;
+            font-size: 13px;
         }
+        
         .marker-item {
-            background: rgba(100, 100, 100, 0.3);
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-            border-left: 3px solid #4CAF50;
+            background: rgba(102, 126, 234, 0.15);
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            animation: slideIn 0.3s ease-out;
         }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
         #addMarker {
-            background: #2196F3;
+            background: linear-gradient(135deg, #2196F3 0%, #1976d2 100%);
             width: 100%;
-            margin-top: 10px;
+            margin-top: 12px;
         }
+        
         #addMarker:hover {
-            background: #0b7dda;
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
         }
+        
         .remove-marker {
-            background: #f44336;
-            padding: 5px 10px;
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+            padding: 8px 14px;
             font-size: 12px;
-            margin-top: 5px;
+            margin-top: 8px;
         }
+        
         .remove-marker:hover {
-            background: #da190b;
+            background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
         }
         
         /* Menu navigation latéral */
         #navMenu {
             position: fixed;
-            right: 0;
+            right: 30px;
             top: 50%;
             transform: translateY(-50%);
             z-index: 2000;
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            padding: 10px;
+            gap: 35px;
         }
+        
         .nav-button {
-            width: 60px;
-            height: 60px;
-            border-radius: 10px;
+            width: 96px;
+            height: 96px;
+            border-radius: 20px;
             border: none;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
             color: white;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
         }
+        
+        .nav-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .nav-button:hover::before {
+            width: 200px;
+            height: 200px;
+        }
+        
         .nav-button:hover {
-            transform: translateX(-5px) scale(1.1);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+            transform: translateX(-10px) scale(1.15) rotate(5deg);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.5);
         }
+        
+        .nav-button:active {
+            transform: translateX(-5px) scale(1.05);
+        }
+        
         #btnMecanique {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            animation: float 3s ease-in-out infinite;
         }
+        
         #btnElectrique {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            animation: float 3s ease-in-out infinite 1s;
         }
+        
         #btnMaintenance {
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            animation: float 3s ease-in-out infinite 2s;
         }
+        
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+        
         .nav-icon {
-            font-size: 24px;
-            margin-bottom: 5px;
+            font-size: 36px;
+            margin-bottom: 8px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
         }
         
         /* Instructions de contrôle */
         #controlInfo {
             position: absolute;
-            top: 10px;
+            top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.85);
             color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 12px;
+            padding: 15px 30px;
+            border-radius: 15px;
+            font-size: 14px;
             z-index: 999;
             display: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            animation: slideDown 0.5s ease-out;
         }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
         #controlInfo.active {
             display: block;
+        }
+        
+        .control-item {
+            display: inline-block;
+            margin: 0 15px;
         }
     </style>
 </head>
@@ -189,8 +376,8 @@
         <button id="addMarker">➕ Ajouter un marqueur</button>
         
         <div class="config-section">
-            <h3>🎮 Contrôles:</h3>
-            <p style="font-size: 12px; line-height: 1.6;">
+            <h3 style="font-size: 16px; margin-bottom: 10px;">🎮 Contrôles:</h3>
+            <p style="font-size: 12px; line-height: 1.8; color: #d0d0d0;">
                 🖱️ <strong>Souris:</strong><br>
                 • Clic droit + déplacer = Rotation<br>
                 • Molette = Zoom<br><br>
@@ -204,13 +391,13 @@
     </div>
 
     <div id="controlInfo">
-        🎮 Clic droit/Tactile = Rotation | Molette/Pincer = Zoom
+        <span class="control-item">🔄 Rotation: Clic droit/Tactile</span>
+        <span class="control-item">🔍 Zoom: Molette/Pincer</span>
     </div>
 
     <div id="controls">
         <button onclick="startAR()">🚀 Démarrer AR</button>
         <button onclick="stopAR()">⏹️ Arrêter</button>
-        <button onclick="toggleConfig()">⚙️ Config</button>
     </div>
 
     <!-- Menu de navigation -->
@@ -242,7 +429,6 @@
         let lastMouseX = 0;
         let lastMouseY = 0;
         let lastPinchDistance = 0;
-        let selectedAnchor = null;
 
         // Initialiser avec un marqueur par défaut
         function initDefaultMarker() {
@@ -349,8 +535,8 @@
                     }
                 }
 
-                // Masquer l'overlay
-                document.getElementById('overlay').style.display = 'none';
+                // Masquer l'overlay avec animation
+                document.getElementById('overlay').classList.add('hidden');
                 document.getElementById('controlInfo').classList.add('active');
                 updateStatus('AR démarrée - Pointez vers les marqueurs');
 
@@ -448,7 +634,7 @@
 
             // Souris - Rotation (clic droit)
             container.addEventListener('mousedown', (e) => {
-                if (e.button === 2) { // Clic droit
+                if (e.button === 2) {
                     e.preventDefault();
                     isRotating = true;
                     lastMouseX = e.clientX;
@@ -551,16 +737,11 @@
                 mindarThree.stop();
                 renderer.setAnimationLoop(null);
                 arStarted = false;
-                document.getElementById('overlay').style.display = 'block';
+                document.getElementById('overlay').classList.remove('hidden');
                 document.getElementById('controlInfo').classList.remove('active');
                 updateStatus('AR arrêtée');
                 anchorContents = [];
             }
-        }
-
-        function toggleConfig() {
-            const overlay = document.getElementById('overlay');
-            overlay.style.display = overlay.style.display === 'none' ? 'block' : 'none';
         }
 
         function updateStatus(message) {
