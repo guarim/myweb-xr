@@ -270,9 +270,15 @@
         let lastMouseY = 0;
         let lastPinchDistance = 0;
 
-        // Démarrage automatique
+        // Démarrage automatique - attendre que MindAR soit chargé
         window.addEventListener('load', () => {
-            setTimeout(startAR, 500);
+            // Attendre que la bibliothèque MindAR soit complètement chargée
+            const checkMindAR = setInterval(() => {
+                if (window.MINDAR && window.MINDAR.IMAGE) {
+                    clearInterval(checkMindAR);
+                    setTimeout(startAR, 500);
+                }
+            }, 100);
         });
 
         async function startAR() {
