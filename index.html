@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebXR AR - Image Tracking</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            max-width: 500px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            z-index: 1000;
+            box-sizing: border-box;
+            max-height: 100vh;
+            overflow-y: auto;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+        #status {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #4CAF50;
+        }
+        .config-section {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        label {
+            display: block;
+            margin: 5px 0;
+            font-weight: bold;
+            color: #fff;
+        }
+        .marker-item {
+            background: rgba(100, 100, 100, 0.3);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 3px solid #4CAF50;
+        }
+        #addMarker {
+            background: #2196F3;
+            width: 100%;
+            margin-top: 10px;
+        }
+        #addMarker:hover {
+            background: #0b7dda;
+        }
+        .remove-marker {
+            background: #f44336;
+            padding: 5px 10px;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .remove-marker:hover {
+            background: #da190b;
+        }
+        
+        /* Menu navigation latéral */
+        #navMenu {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 10px;
+        }
+        .nav-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .nav-button:hover {
+            transform: translateX(-5px) scale(1.1);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+        }
+        #btnMecanique {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        #btnElectrique {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        #btnMaintenance {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .nav-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        /* Instructions de contrôle */
+        #controlInfo {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 999;
+            display: none;
+        }
+        #controlInfo.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    
+    <div id="overlay">
+        <h2>⚙️ Configuration WebXR AR</h2>
+        
+        <div id="markersList"></div>
+        
+        <button id="addMarker">➕ Ajouter un marqueur</button>
+        
+        <div class="config-section">
+            <h3>🎮 Contrôles:</h3>
+            <p style="font-size: 12px; line-height: 1.6;">
+                🖱️ <strong>Souris:</strong><br>
+                • Clic droit + déplacer = Rotation<br>
+                • Molette = Zoom<br><br>
+                📱 <strong>Tactile:</strong><br>
+                • 1 doigt = Rotation<br>
+                • Pincer = Zoom
+            </p>
+        </div>
+        
+        <div id="status">Status: Prêt à démarrer</div>
+    </div>
+
+    <div id="controlInfo">
+        🎮 Clic droit/Tactile = Rotation | Molette/Pincer = Zoom
+    </div>
+
+    <div id="controls">
+        <button onclick="startAR()">🚀 Démarrer AR</button>
+        <button onclick="stopAR()">⏹️ Arrêter</button>
+        <button onclick="toggleConfig()">⚙️ Config</button>
+    </div>
+
+    <!-- Menu de navigation -->
+    <div id="navMenu">
+        <button class="nav-button" id="btnMecanique" onclick="navigateTo('mecanique.html')">
+            <span class="nav-icon">⚙️</span>
+            <span>Mécanique</span>
+        </button>
+        <button class="nav-button" id="btnElectrique" onclick="navigateTo('electrique.html')">
+            <span class="nav-icon">⚡</span>
+            <span>Électrique</span>
+        </button>
+        <button class="nav-button" id="btnMaintenance" onclick="navigateTo('maintenance.html')">
+            <span class="nav-icon">🔧</span>
+            <span>Maintenance</span>
+        </button>
+    </div>
+
+    <script>
+        let mindarThree;
+        let scene, camera, renderer;
+        let arStarted = false;
+        let markers = [];
+        let anchorContents = [];
+        
+        // Contrôles interactifs
+        let isRotating = false;
+        let isPinching = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let lastPinchDistance = 0;
+        let selectedAnchor = null;
+
+        // Initialiser avec un marqueur par défaut
+        function initDefaultMarker() {
+            markers.push({
+                id: Date.now(),
+                markerImage: 'marker1',
+                contentType: 'image',
+                contentFile: 'content1.jpg',
+                scale: 1,
+                rotation: { x: 0, y: 0, z: 0 }
+            });
+            renderMarkersList();
+        }
+
+        function renderMarkersList() {
+            const list = document.getElementById('markersList');
+            list.innerHTML = '';
+            
+            markers.forEach((marker, index) => {
+                const div = document.createElement('div');
+                div.className = 'marker-item';
+                div.innerHTML = `
+                    <label>📍 Marqueur ${index + 1}</label>
+                    <input type="text" value="${marker.markerImage}" 
+                           onchange="updateMarker(${marker.id}, 'markerImage', this.value)"
+                           placeholder="marker1">
+                    <label>Type de contenu:</label>
+                    <select onchange="updateMarker(${marker.id}, 'contentType', this.value)">
+                        <option value="image" ${marker.contentType === 'image' ? 'selected' : ''}>Image</option>
+                        <option value="video" ${marker.contentType === 'video' ? 'selected' : ''}>Vidéo</option>
+                        <option value="glb" ${marker.contentType === 'glb' ? 'selected' : ''}>Modèle 3D (.glb)</option>
+                    </select>
+                    <label>Fichier (dans assets/):</label>
+                    <input type="text" value="${marker.contentFile}" 
+                           onchange="updateMarker(${marker.id}, 'contentFile', this.value)"
+                           placeholder="content.jpg">
+                    <label>Échelle initiale:</label>
+                    <input type="number" value="${marker.scale}" step="0.1" min="0.1"
+                           onchange="updateMarker(${marker.id}, 'scale', parseFloat(this.value))">
+                    <button class="remove-marker" onclick="removeMarker(${marker.id})">🗑️ Supprimer</button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function updateMarker(id, field, value) {
+            const marker = markers.find(m => m.id === id);
+            if (marker) {
+                marker[field] = value;
+            }
+        }
+
+        function removeMarker(id) {
+            markers = markers.filter(m => m.id !== id);
+            renderMarkersList();
+        }
+
+        document.getElementById('addMarker').onclick = function() {
+            markers.push({
+                id: Date.now(),
+                markerImage: `marker${markers.length + 1}`,
+                contentType: 'image',
+                contentFile: `content${markers.length + 1}.jpg`,
+                scale: 1,
+                rotation: { x: 0, y: 0, z: 0 }
+            });
+            renderMarkersList();
+        };
+
+        async function startAR() {
+            if (markers.length === 0) {
+                updateStatus('Erreur: Ajoutez au moins un marqueur');
+                return;
+            }
+
+            try {
+                updateStatus('Initialisation de la caméra...');
+
+                // Utiliser le premier marqueur pour initialiser
+                mindarThree = new window.MINDAR.IMAGE.MindARThree({
+                    container: document.getElementById('container'),
+                    imageTargetSrc: `./assets/${markers[0].markerImage}.mind`
+                });
+
+                const {renderer: arRenderer, scene: arScene, camera: arCamera} = mindarThree;
+                scene = arScene;
+                camera = arCamera;
+                renderer = arRenderer;
+
+                // Charger tous les marqueurs
+                anchorContents = [];
+                for (let i = 0; i < markers.length; i++) {
+                    const marker = markers[i];
+                    const anchor = mindarThree.addAnchor(i);
+                    const content = await loadContent(marker.contentType, marker.contentFile, marker.scale);
+                    
+                    if (content) {
+                        anchor.group.add(content);
+                        anchorContents.push({
+                            anchor: anchor,
+                            content: content,
+                            marker: marker
+                        });
+                    }
+                }
+
+                // Masquer l'overlay
+                document.getElementById('overlay').style.display = 'none';
+                document.getElementById('controlInfo').classList.add('active');
+                updateStatus('AR démarrée - Pointez vers les marqueurs');
+
+                // Démarrer AR
+                await mindarThree.start();
+                arStarted = true;
+
+                // Ajouter les contrôles interactifs
+                setupInteractiveControls();
+
+                // Boucle de rendu
+                renderer.setAnimationLoop(() => {
+                    renderer.render(scene, camera);
+                });
+
+            } catch (error) {
+                console.error('Erreur AR:', error);
+                updateStatus('Erreur: ' + error.message);
+            }
+        }
+
+        async function loadContent(type, filename, scale) {
+            const loader = new THREE.TextureLoader();
+            const path = `./assets/${filename}`;
+            let content = null;
+
+            try {
+                switch(type) {
+                    case 'image':
+                        const texture = await loader.loadAsync(path);
+                        const geometry = new THREE.PlaneGeometry(1, 1);
+                        const material = new THREE.MeshBasicMaterial({
+                            map: texture,
+                            transparent: true,
+                            side: THREE.DoubleSide
+                        });
+                        content = new THREE.Mesh(geometry, material);
+                        
+                        const img = new Image();
+                        img.onload = () => {
+                            const aspect = img.width / img.height;
+                            content.scale.set(aspect * scale, scale, scale);
+                        };
+                        img.src = path;
+                        break;
+
+                    case 'video':
+                        const video = document.createElement('video');
+                        video.src = path;
+                        video.loop = true;
+                        video.muted = true;
+                        video.setAttribute('playsinline', '');
+                        video.play();
+
+                        const videoTexture = new THREE.VideoTexture(video);
+                        const videoGeometry = new THREE.PlaneGeometry(1, 1);
+                        const videoMaterial = new THREE.MeshBasicMaterial({
+                            map: videoTexture,
+                            side: THREE.DoubleSide
+                        });
+                        content = new THREE.Mesh(videoGeometry, videoMaterial);
+                        
+                        video.addEventListener('loadedmetadata', () => {
+                            const aspect = video.videoWidth / video.videoHeight;
+                            content.scale.set(aspect * scale, scale, scale);
+                        });
+                        break;
+
+                    case 'glb':
+                        const boxGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                        const boxMaterial = new THREE.MeshPhongMaterial({
+                            color: 0x00ff00
+                        });
+                        content = new THREE.Mesh(boxGeometry, boxMaterial);
+                        content.scale.set(scale, scale, scale);
+                        
+                        const light = new THREE.DirectionalLight(0xffffff, 1);
+                        light.position.set(1, 1, 1);
+                        content.add(light);
+                        break;
+                }
+
+                if (content) {
+                    content.position.set(0, 0, 0);
+                }
+            } catch (error) {
+                console.error('Erreur chargement contenu:', error);
+            }
+
+            return content;
+        }
+
+        function setupInteractiveControls() {
+            const container = document.getElementById('container');
+
+            // Souris - Rotation (clic droit)
+            container.addEventListener('mousedown', (e) => {
+                if (e.button === 2) { // Clic droit
+                    e.preventDefault();
+                    isRotating = true;
+                    lastMouseX = e.clientX;
+                    lastMouseY = e.clientY;
+                }
+            });
+
+            container.addEventListener('mousemove', (e) => {
+                if (isRotating) {
+                    const deltaX = e.clientX - lastMouseX;
+                    const deltaY = e.clientY - lastMouseY;
+                    
+                    anchorContents.forEach(({content}) => {
+                        if (content) {
+                            content.rotation.y += deltaX * 0.01;
+                            content.rotation.x += deltaY * 0.01;
+                        }
+                    });
+                    
+                    lastMouseX = e.clientX;
+                    lastMouseY = e.clientY;
+                }
+            });
+
+            container.addEventListener('mouseup', () => {
+                isRotating = false;
+            });
+
+            container.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+            });
+
+            // Souris - Zoom (molette)
+            container.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const scaleDelta = e.deltaY > 0 ? 0.95 : 1.05;
+                
+                anchorContents.forEach(({content}) => {
+                    if (content) {
+                        content.scale.multiplyScalar(scaleDelta);
+                    }
+                });
+            });
+
+            // Tactile - Rotation (1 doigt)
+            let lastTouchX = 0;
+            let lastTouchY = 0;
+
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    lastTouchX = e.touches[0].clientX;
+                    lastTouchY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    isPinching = true;
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    lastPinchDistance = Math.sqrt(dx * dx + dy * dy);
+                }
+            });
+
+            container.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                
+                if (e.touches.length === 1 && !isPinching) {
+                    const deltaX = e.touches[0].clientX - lastTouchX;
+                    const deltaY = e.touches[0].clientY - lastTouchY;
+                    
+                    anchorContents.forEach(({content}) => {
+                        if (content) {
+                            content.rotation.y += deltaX * 0.01;
+                            content.rotation.x += deltaY * 0.01;
+                        }
+                    });
+                    
+                    lastTouchX = e.touches[0].clientX;
+                    lastTouchY = e.touches[0].clientY;
+                } else if (e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const scaleDelta = distance / lastPinchDistance;
+                    
+                    anchorContents.forEach(({content}) => {
+                        if (content) {
+                            content.scale.multiplyScalar(scaleDelta);
+                        }
+                    });
+                    
+                    lastPinchDistance = distance;
+                }
+            });
+
+            container.addEventListener('touchend', () => {
+                isPinching = false;
+            });
+        }
+
+        function stopAR() {
+            if (arStarted && mindarThree) {
+                mindarThree.stop();
+                renderer.setAnimationLoop(null);
+                arStarted = false;
+                document.getElementById('overlay').style.display = 'block';
+                document.getElementById('controlInfo').classList.remove('active');
+                updateStatus('AR arrêtée');
+                anchorContents = [];
+            }
+        }
+
+        function toggleConfig() {
+            const overlay = document.getElementById('overlay');
+            overlay.style.display = overlay.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = 'Status: ' + message;
+        }
+
+        function navigateTo(page) {
+            window.location.href = page;
+        }
+
+        // Initialisation
+        initDefaultMarker();
+        updateStatus('Prêt à démarrer');
+    </script>
+</body>
+</html>
