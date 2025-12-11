@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générateur AR.js Studio</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <style>
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        /* HEADER STYLES */
+        .header-app { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 2rem 0; 
+            margin-bottom: 2rem; 
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .header-img {
+            max-height: 100px;
+            width: auto;
+            background: rgba(255,255,255,0.2);
+            padding: 5px;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Autres styles */
+        .card-slot { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s; margin-bottom: 1.5rem; }
+        .card-slot:hover { transform: translateY(-5px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); }
+        .step-badge { background: #764ba2; color: white; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold; }
+        .preview-thumb { max-height: 80px; max-width: 100%; border-radius: 5px; margin-top: 10px; display: none; border: 1px solid #ddd; }
+        #loadingOverlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.9); z-index: 9999; align-items: center; justify-content: center; flex-direction: column; }
+    </style>
+</head>
+<body>
+
+    <div class="header-app text-center">
+        <div class="container header-content">
+            <img src="https://via.placeholder.com/150x100/ffffff/764ba2?text=LOGO+1" alt="Logo Gauche" class="header-img">
+            
+            <div>
+                <h1 class="mb-0"><i class="fas fa-cube"></i> AR.js Generator</h1>
+                <p class="lead mb-0">Créez votre expérience de Réalité Augmentée</p>
+            </div>
+
+            <img src="https://via.placeholder.com/150x100/ffffff/764ba2?text=IMAGE+2" alt="Image Droite" class="header-img">
+        </div>
+    </div>
+
+    <div class="container mb-5">
+        <form id="arForm">
+            <div class="row" id="slotsContainer">
+                </div>
+
+            <div class="d-grid gap-2 col-md-6 mx-auto mt-4">
+                <button type="button" class="btn btn-primary btn-lg p-3" onclick="generateProject()">
+                    <i class="fas fa-download me-2"></i> Générer et Télécharger le Projet
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div id="loadingOverlay">
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
+        <h4 class="mt-3">Génération du projet en cours...</h4>
+        <p class="text-muted">Traitement des markers et compression zip</p>
+    </div>
+
+    <canvas id="hiddenCanvas" style="display:none;"></canvas>
+
+    <script>
+        // --- CONFIGURATION ---
+        const MAX_SLOTS = 4;
+        const slotsContainer = document.getElementById('slotsContainer');
+
+        // --- INIT UI ---
+        for(let i = 1; i <= MAX_SLOTS; i++) {
+            const html = `
+                <div class="col-md-6">
+                    <div class="card card-slot p-4">
+                        <h5 class="card-title mb-3"><span class="step-badge">${i}</span> Pairage Marker & Contenu #${i}</h5>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">1. Image du Marker (JPG/PNG)</label>
+                            <input type="file" class="form-control" id="markerImg-${i}" accept="image/png, image/jpeg" onchange="previewImage(this, 'prev-marker-${i}')">
+                            <div class="form-text">Image contrastée, simple, sans transparence.</div>
+                            <img id="prev-marker-${i}" class="preview-thumb" />
+                        </div>
+
+                        <hr>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">2. Contenu à afficher</label>
+                            <select class="form-select mb-2" id="contentType-${i}" onchange="toggleAccept('${i}')">
+                                <option value="image">Image (JPG/PNG)</option>
+                                <option value="video">Vidéo (MP4)</option>
+                                <option value="model">Modèle 3D (GLB/GLTF)</option>
+                            </select>
+                            <input type="file" class="form-control" id="contentFile-${i}" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+            `;
+            slotsContainer.innerHTML += html;
+        }
+
+        // --- UI HELPERS ---
+        function toggleAccept(id) {
+            const type = document.getElementById(`contentType-${id}`).value;
+            const input = document.getElementById(`contentFile-${id}`);
+            if(type === 'image') input.accept = "image/*";
+            else if(type === 'video') input.accept = "video/mp4, video/webm";
+            else if(type === 'model') input.accept = ".glb, .gltf";
+        }
+
+        function previewImage(input, previewId) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.getElementById(previewId);
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // --- CORE LOGIC ---
+        async function generateProject() {
+            const zip = new JSZip();
+            const assetsFolder = zip.folder("assets");
+            let markerHtmlComponents = "";
+            let assetsHtmlComponents = "";
+            let hasData = false;
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+
+            try {
+                for (let i = 1; i <= MAX_SLOTS; i++) {
+                    const markerInput = document.getElementById(`markerImg-${i}`);
+                    const contentInput = document.getElementById(`contentFile-${i}`);
+                    const contentType = document.getElementById(`contentType-${i}`).value;
+
+                    if (markerInput.files.length > 0 && contentInput.files.length > 0) {
+                        hasData = true;
+                        
+                        const markerFile = markerInput.files[0];
+                        const markerName = `marker_${i}`;
+                        assetsFolder.file(`${markerName}.png`, markerFile);
+                        
+                        const pattData = await generatePatternData(markerFile);
+                        assetsFolder.file(`${markerName}.patt`, pattData);
+
+                        const contentFile = contentInput.files[0];
+                        const contentExt = contentFile.name.split('.').pop();
+                        const contentName = `content_${i}.${contentExt}`;
+                        assetsFolder.file(contentName, contentFile);
+
+                        let entityHtml = "";
+                        if (contentType === 'image') {
+                            entityHtml = `<a-image src="assets/${contentName}" position="0 0.5 0" rotation="-90 0 0" scale="1 1 1"></a-image>`;
+                        } else if (contentType === 'video') {
+                            // Video setup for AUTOPLAY: muted, playsinline, autoplay
+                            assetsHtmlComponents += `<video id="vid${i}" loop="true" autoplay="true" muted="true" playsinline="true" webkit-playsinline="true" crossorigin="anonymous" src="assets/${contentName}"></video>`;
+                            entityHtml = `<a-video src="#vid${i}" position="0 0.5 0" rotation="-90 0 0" width="1" height="1"></a-video>`;
+                        } else if (contentType === 'model') {
+                            entityHtml = `<a-entity gltf-model="url(assets/${contentName})" scale="0.5 0.5 0.5" position="0 0 0" rotation="0 0 0" animation="property: rotation; to: 0 360 0; loop: true; dur: 10000"></a-entity>`;
+                        }
+
+                        markerHtmlComponents += `
+        <a-marker type="pattern" url="assets/${markerName}.patt" id="marker-${i}">
+            ${entityHtml}
+        </a-marker>`;
+                    }
+                }
+
+                if (!hasData) {
+                    alert("Veuillez remplir au moins un couple Marker + Contenu.");
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                    return;
+                }
+
+                const indexHtml = generateIndexHTML(markerHtmlComponents, assetsHtmlComponents);
+                zip.file("index.html", indexHtml);
+
+                const content = await zip.generateAsync({type:"blob"});
+                saveAs(content, "ar-project.zip");
+
+            } catch (err) {
+                console.error(err);
+                alert("Erreur : " + err.message);
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+
+        function generatePatternData(imageFile) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.src = URL.createObjectURL(imageFile);
+                img.onload = () => {
+                    const canvas = document.getElementById('hiddenCanvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = 16;
+                    canvas.height = 16;
+                    context.drawImage(img, 0, 0, 16, 16);
+                    const imageData = context.getImageData(0, 0, 16, 16);
+                    const data = imageData.data;
+                    let pattContent = "";
+                    for (let y = 0; y < 16; y++) {
+                        for (let x = 0; x < 16; x++) {
+                            const offset = (y * 16 + x) * 4;
+                            const avg = Math.floor((data[offset] + data[offset + 1] + data[offset + 2]) / 3);
+                            pattContent += String(avg).padStart(3, " ") + " " + String(avg).padStart(3, " ") + " " + String(avg).padStart(3, " ") + "\n";
+                        }
+                    }
+                    resolve(pattContent);
+                };
+                img.onerror = reject;
+            });
+        }
+
+        // --- GÉNÉRATION HTML SANS BOUTON ---
+        function generateIndexHTML(markers, assets) {
+            return `<!DOCTYPE html>
+<html>
+<head>
+    <title>Expérience AR</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"><\/script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"><\/script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        /* Plus d'UI Overlay nécessaire ici */
+    </style>
+</head>
+<body>
+    
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;">
+        <a-assets>${assets}</a-assets>
+        ${markers}
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+        // Script pour s'assurer que les vidéos jouent (même en muet) quand la page charge
+        window.addEventListener('load', () => {
+            const vids = document.querySelectorAll('video');
+            vids.forEach(v => { 
+                v.muted = true; // Obligatoire pour l'autoplay mobile
+                v.play().catch(e => console.log("Autoplay bloqué par le navigateur:", e)); 
+            });
+        });
+    <\/script>
+</body>
+</html>`;
+        }
+    </script>
+</body>
+</html>
